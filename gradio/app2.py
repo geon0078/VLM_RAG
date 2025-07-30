@@ -1,5 +1,9 @@
 # app2.py
 
+
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # 두 번째 GPU만 사용
+
 import gradio as gr
 from models import load_all_models
 from pipeline import run_rag_pipeline, run_vlm_only_pipeline

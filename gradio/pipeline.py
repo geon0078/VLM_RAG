@@ -83,8 +83,14 @@ def run_rag_pipeline(
     if chroma_collection is None:
         raise gr.Error("ChromaDB 컬렉션이 로드되지 않았습니다. 서버 로그를 확인해주세요.")
 
-    progress(0, desc="[RAG] 이미지 분석 중...")
-    image_prompt = "이 이미지를 보고 간단히 설명해 주세요. <image>"
+
+    progress(0, desc="[RAG] 이미지 설명 생성 중...")
+    image_prompt = (
+        "이 이미지는 대한민국 지하철과 관련된 사진입니다. "
+        "노선, 역명, 환승, 색상, 주변 정보 등 지하철과 직접적으로 연관된 내용을 중심으로, "
+        "이미지에서 파악할 수 있는 핵심 정보를 요약해 주세요. 불필요한 묘사나 일반적인 설명은 생략하고, "
+        "지하철 시스템과 관련된 사실만 간결하게 정리해 주세요. <image>"
+    )
     prompt, input_ids, pixel_values = vlm_model.preprocess_inputs(image_prompt, [image], max_partition=9)
     attention_mask = torch.ne(input_ids, text_tokenizer.pad_token_id).unsqueeze(0).to(vlm_model.device)
     input_ids = input_ids.unsqueeze(0).to(vlm_model.device)
@@ -94,11 +100,23 @@ def run_rag_pipeline(
         output_ids = vlm_model.generate(input_ids, pixel_values=pixel_values_desc, attention_mask=attention_mask, max_new_tokens=256, do_sample=False)[0]
         image_description = text_tokenizer.decode(output_ids, skip_special_tokens=True).strip()
 
-    progress(0.3, desc="[RAG] 지식베이스 검색 중...")
-    query_embedding = embedding_model.encode([image_description]).tolist()
-    results = chroma_collection.query(query_embeddings=query_embedding, n_results=3)
-    retrieved_docs = results['documents'][0]
-    context_str = "\n".join(retrieved_docs)
+    progress(0.2, desc="[RAG] 이미지 설명 기반 벡터 검색 중...")
+    image_query_embedding = embedding_model.encode([image_description]).tolist()
+    image_results = chroma_collection.query(query_embeddings=image_query_embedding, n_results=3)
+    image_retrieved_docs = image_results['documents'][0]
+    image_context_str = "\n".join(image_retrieved_docs)
+
+    progress(0.4, desc="[RAG] 사용자 질문 기반 벡터 검색 중...")
+    question_query_embedding = embedding_model.encode([user_question]).tolist()
+    question_results = chroma_collection.query(query_embeddings=question_query_embedding, n_results=3)
+    question_retrieved_docs = question_results['documents'][0]
+    question_context_str = "\n".join(question_retrieved_docs)
+
+    # 두 검색 결과를 모두 참고정보로 넘김
+    context_str = (
+        "[이미지 설명 기반 검색 결과]\n" + (image_context_str if image_context_str.strip() else "없음") +
+        "\n\n[질문 기반 검색 결과]\n" + (question_context_str if question_context_str.strip() else "없음")
+    )
 
     progress(0.6, desc="[RAG] 최종 답변 생성 중...")
     final_prompt_text = (
