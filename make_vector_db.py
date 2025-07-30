@@ -12,7 +12,7 @@ EMBEDDING_MODEL = 'BAAI/bge-m3'
 # ChromaDB를 저장할 디렉터리 경로
 PERSIST_DIRECTORY = './chroma_db'
 # 저장할 컬렉션 이름 (main.py와 동일해야 함)
-COLLECTION_NAME = "korean_knowledge_base"
+COLLECTION_NAME = "korean_knowledge_base_v2"
 
 def main():
     """
@@ -26,8 +26,12 @@ def main():
 
         print("🔄 2단계: 텍스트 데이터 결합 중...")
         # 모든 컬럼을 문자열로 합쳐 '임베딩텍스트'라는 새 컬럼 생성
+        # all_columns = df.columns.tolist()
+        # df['임베딩텍스트'] = df[all_columns].astype(str).agg(' / '.join, axis=1)
         all_columns = df.columns.tolist()
-        df['임베딩텍스트'] = df[all_columns].astype(str).agg(' / '.join, axis=1)
+        df['임베딩텍스트'] = df.apply(
+            lambda row: ' / '.join([f"{col}:{row[col]}" for col in all_columns]),
+            axis=1)
         documents = df['임베딩텍스트'].tolist()
         print(f"✅ 총 {len(documents)}개의 문서를 준비했습니다.")
 
