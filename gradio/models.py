@@ -25,12 +25,17 @@ def load_all_models():
     print("Loading embedding model and ChromaDB...")
     embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
     client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
-    try:
-        chroma_collection = client.get_collection(name=COLLECTION_NAME)
-        print(f"✅ ChromaDB collection '{COLLECTION_NAME}' loaded with {chroma_collection.count()} documents.")
-    except Exception as e:
-        print(f"🚨 ChromaDB 컬렉션 로드 실패: {e}")
-        chroma_collection = None
+    # 참고할 모든 컬렉션을 리스트로 로드
+    from config import COLLECTION_NAMES
+    collections = {}
+    for cname in COLLECTION_NAMES:
+        try:
+            cobj = client.get_collection(name=cname)
+            print(f"✅ ChromaDB collection '{cname}' loaded with {cobj.count()} documents.")
+            collections[cname] = cobj
+        except Exception as e:
+            print(f"🚨 '{cname}' 컬렉션 로드 실패: {e}")
+            collections[cname] = None
     print("✅ Embedding model and ChromaDB loaded.")
 
-    return vlm_model, text_tokenizer, vis_tokenizer, embedding_model, chroma_collection
+    return vlm_model, text_tokenizer, vis_tokenizer, embedding_model, collections
