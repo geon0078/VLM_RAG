@@ -75,12 +75,13 @@ def run_rag_pipeline(
     text_tokenizer, 
     vis_tokenizer, 
     embedding_model, 
-    chroma_collection,
+    chroma_collections,
     progress=gr.Progress(track_tqdm=True)
 ):
     """기존의 RAG 파이프라인을 실행합니다."""
     
-    if chroma_collection is None:
+
+    if not chroma_collections or not isinstance(chroma_collections, dict) or all(v is None for v in chroma_collections.values()):
         raise gr.Error("ChromaDB 컬렉션이 로드되지 않았습니다. 서버 로그를 확인해주세요.")
 
 
@@ -100,17 +101,32 @@ def run_rag_pipeline(
         output_ids = vlm_model.generate(input_ids, pixel_values=pixel_values_desc, attention_mask=attention_mask, max_new_tokens=256, do_sample=False)[0]
         image_description = text_tokenizer.decode(output_ids, skip_special_tokens=True).strip()
 
+
     progress(0.2, desc="[RAG] 이미지 설명 기반 벡터 검색 중...")
     image_query_embedding = embedding_model.encode([image_description]).tolist()
-    image_results = chroma_collection.query(query_embeddings=image_query_embedding, n_results=3)
-    image_retrieved_docs = image_results['documents'][0]
-    image_context_str = "\n".join(image_retrieved_docs)
+    image_retrieved_docs_all = []
+    for cname, collection in chroma_collections.items():
+        if collection is not None:
+            try:
+                results = collection.query(query_embeddings=image_query_embedding, n_results=3)
+                docs = results.get('documents', [[]])[0]
+                image_retrieved_docs_all.extend(docs)
+            except Exception as e:
+                print(f"[RAG] 이미지 기반 컬렉션 '{cname}' 검색 오류: {e}")
+    image_context_str = "\n".join(image_retrieved_docs_all)
 
     progress(0.4, desc="[RAG] 사용자 질문 기반 벡터 검색 중...")
     question_query_embedding = embedding_model.encode([user_question]).tolist()
-    question_results = chroma_collection.query(query_embeddings=question_query_embedding, n_results=3)
-    question_retrieved_docs = question_results['documents'][0]
-    question_context_str = "\n".join(question_retrieved_docs)
+    question_retrieved_docs_all = []
+    for cname, collection in chroma_collections.items():
+        if collection is not None:
+            try:
+                results = collection.query(query_embeddings=question_query_embedding, n_results=3)
+                docs = results.get('documents', [[]])[0]
+                question_retrieved_docs_all.extend(docs)
+            except Exception as e:
+                print(f"[RAG] 질문 기반 컬렉션 '{cname}' 검색 오류: {e}")
+    question_context_str = "\n".join(question_retrieved_docs_all)
 
     # 두 검색 결과를 모두 참고정보로 넘김
     context_str = (

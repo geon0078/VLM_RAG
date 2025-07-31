@@ -10,7 +10,7 @@ EXCEL_FILE_PATH = '/home/aisw/Project/UST-ETRI-2025/VLM_RAG/data/korean_train_20
 # 사용할 임베딩 모델 이름
 EMBEDDING_MODEL = 'BAAI/bge-m3'
 # ChromaDB를 저장할 디렉터리 경로
-PERSIST_DIRECTORY = './chroma_db'
+PERSIST_DIRECTORY = '../chroma_db'
 # 저장할 컬렉션 이름 (main.py와 동일해야 함)
 COLLECTION_NAME = "korean_knowledge_base_v2"
 

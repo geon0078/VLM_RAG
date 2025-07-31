@@ -12,7 +12,9 @@ from PIL import Image
 # --- 1. 애플리케이션 시작 시 모델 로딩 ---
 print(" 비교 앱 시작... 모든 모델 로딩을 시작합니다. ")
 try:
-    VLM, TXT_TOKENIZER, VIS_TOKENIZER, EMB_MODEL, DB_COLLECTION = load_all_models()
+    VLM, TXT_TOKENIZER, VIS_TOKENIZER, EMB_MODEL, COLLECTIONS = load_all_models()
+    # 모든 컬렉션을 RAG 파이프라인에 전달할 수 있도록 전체 dict 사용
+    chroma_collections = COLLECTIONS
     print("✨ 모든 모델과 DB가 준비되었습니다. Gradio UI를 시작합니다. ✨")
     MODELS_LOADED = True
 except Exception as e:
@@ -24,16 +26,16 @@ def gradio_comparison_interface(image, user_question, progress=gr.Progress(track
     """VLM 단독 답변과 RAG 적용 답변을 모두 생성하여 반환합니다."""
     if not MODELS_LOADED:
         raise gr.Error("모델이 정상적으로 로드되지 않았습니다. 서버를 재시작하고 로그를 확인해주세요.")
-    
+
     progress(0, desc="VLM 단독 답변 생성 중...")
     # [수정] 이제 vlm_only_pipeline은 (답변, 근거) 2개를 반환합니다.
     vlm_answer, vlm_reasoning = run_vlm_only_pipeline(image, user_question, VLM, TXT_TOKENIZER, VIS_TOKENIZER)
-    
-    # RAG 적용 파이프라인 실행
+
+    # RAG 적용 파이프라인 실행 - 모든 컬렉션을 전달
     rag_answer, rag_desc, rag_context = run_rag_pipeline(
-        image, user_question, VLM, TXT_TOKENIZER, VIS_TOKENIZER, EMB_MODEL, DB_COLLECTION, progress
+        image, user_question, VLM, TXT_TOKENIZER, VIS_TOKENIZER, EMB_MODEL, chroma_collections, progress
     )
-    
+
     # [수정] UI 컴포넌트 순서에 맞게 모든 결과를 반환
     return vlm_answer, vlm_reasoning, rag_answer, rag_desc, rag_context
 
@@ -54,28 +56,28 @@ with gr.Blocks(theme=gr.themes.Soft(), title="VLM vs RAG-VLM") as demo:
             gr.Markdown("## 2. VLM 단독 답변")
             # [수정] lines와 max_lines를 함께 지정하여 스크롤바 생성 제어
             vlm_answer_output = gr.Textbox(
-                label="모델의 자체 지식 기반 답변", interactive=False, lines=10, max_lines=15
+                label="모델의 자체 지식 기반 답변", interactive=False, lines=10, max_lines=100, show_copy_button=True, show_label=True, autoscroll=True
             )
             with gr.Accordion("답변 근거 보기 (VLM)", open=False):
                 # [수정] lines와 max_lines를 함께 지정
                 vlm_reasoning_output = gr.Textbox(
-                    label="VLM의 추론 과정", interactive=False, lines=10, max_lines=15
+                    label="VLM의 추론 과정", interactive=False, lines=10, max_lines=100, show_copy_button=True, show_label=True, autoscroll=True
                 )
 
         with gr.Column(scale=1):
             gr.Markdown("## 3. RAG 적용 답변")
             # [수정] lines와 max_lines를 함께 지정
             rag_answer_output = gr.Textbox(
-                label="지식베이스(DB) 참고 답변", interactive=False, lines=10, max_lines=15
+                label="지식베이스(DB) 참고 답변", interactive=False, lines=10, max_lines=100, show_copy_button=True, show_label=True, autoscroll=True
             )
             with gr.Accordion("상세 과정 보기 (RAG)", open=False):
                 # [수정] lines와 max_lines를 함께 지정
                 rag_desc_output = gr.Textbox(
-                    label="(1) 이미지 분석 결과", interactive=False, lines=10, max_lines=15
+                    label="(1) 이미지 분석 결과", interactive=False, lines=10, max_lines=100, show_copy_button=True, show_label=True, autoscroll=True
                 )
                 # [수정] lines와 max_lines를 함께 지정
                 rag_context_output = gr.Textbox(
-                    label="(2) 지식베이스 검색 결과", interactive=False, lines=10, max_lines=15
+                    label="(2) 지식베이스 검색 결과", interactive=False, lines=10, max_lines=100, show_copy_button=True, show_label=True, autoscroll=True
                 )
 
     if MODELS_LOADED:
