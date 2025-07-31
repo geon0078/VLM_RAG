@@ -110,7 +110,8 @@ def run_rag_pipeline(
             try:
                 results = collection.query(query_embeddings=image_query_embedding, n_results=3)
                 docs = results.get('documents', [[]])[0]
-                image_retrieved_docs_all.extend(docs)
+                # 각 컬렉션별 최대 3개만 추가
+                image_retrieved_docs_all.extend(docs[:3])
             except Exception as e:
                 print(f"[RAG] 이미지 기반 컬렉션 '{cname}' 검색 오류: {e}")
     image_context_str = "\n".join(image_retrieved_docs_all)
@@ -123,7 +124,8 @@ def run_rag_pipeline(
             try:
                 results = collection.query(query_embeddings=question_query_embedding, n_results=3)
                 docs = results.get('documents', [[]])[0]
-                question_retrieved_docs_all.extend(docs)
+                # 각 컬렉션별 최대 3개만 추가
+                question_retrieved_docs_all.extend(docs[:3])
             except Exception as e:
                 print(f"[RAG] 질문 기반 컬렉션 '{cname}' 검색 오류: {e}")
     question_context_str = "\n".join(question_retrieved_docs_all)

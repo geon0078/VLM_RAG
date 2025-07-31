@@ -25,8 +25,7 @@ def load_all_models():
     print("Loading embedding model and ChromaDB...")
     embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
     client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
-    # 참고할 모든 컬렉션을 리스트로 로드
-    from config import COLLECTION_NAMES
+    
     collections = {}
     for cname in COLLECTION_NAMES:
         try:

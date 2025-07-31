@@ -23,15 +23,12 @@ def build_documents_from_csv(file_path, file_key):
     df = pd.read_csv(file_path)
     documents = []
     ids = []
-    for idx, row in df.iterrows():
-        text = (
-            f"지하철 노선: {file_key} / 역명: {row['역명(한글)']} / "
-            f"영문: {row['역명(영문)']} / 로마자: {row['역명(로마자)']} / "
-            f"일본어: {row['역명(일본어)']} / 중국어(간체): {row['역명(중국어 간체)']} / "
-            f"중국어(번체): {row['역명(중국어 번체)']}"
-        )
-        documents.append(text)
-        ids.append(f"{file_key}_{idx}")
+    # 역명(한글) 컬럼만 추출하여 순서대로 리스트로 저장
+    station_names = df['역명(한글)'].tolist()
+    # 한 노선의 모든 역 순서를 하나의 문서로 저장
+    text = f"지하철 노선: {file_key} / 역 순서: {' -> '.join(station_names)}"
+    documents.append(text)
+    ids.append(f"{file_key}_all")
     return documents, ids
 
 def main():
