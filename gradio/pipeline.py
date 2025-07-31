@@ -98,7 +98,7 @@ def run_rag_pipeline(
     pixel_values_desc = [pixel_values.to(dtype=vis_tokenizer.dtype, device=vis_tokenizer.device)] if pixel_values is not None else None
 
     with torch.inference_mode():
-        output_ids = vlm_model.generate(input_ids, pixel_values=pixel_values_desc, attention_mask=attention_mask, max_new_tokens=256, do_sample=False)[0]
+        output_ids = vlm_model.generate(input_ids, pixel_values=pixel_values_desc, attention_mask=attention_mask, max_new_tokens=512, do_sample=False)[0]
         image_description = text_tokenizer.decode(output_ids, skip_special_tokens=True).strip()
 
 
