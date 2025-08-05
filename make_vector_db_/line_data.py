@@ -5,10 +5,10 @@ import torch
 import chromadb
 
 # --- 설정부 ---
-DATA_FOLDER = '../data/csv'
+DATA_FOLDER = '/home/aisw/Project/UST-ETRI-2025/VLM_RAG/data/csv'
 EMBEDDING_MODEL = 'BAAI/bge-m3'
 # ChromaDB를 저장할 디렉터리 경로
-PERSIST_DIRECTORY = '../chroma_db'
+PERSIST_DIRECTORY = '/home/aisw/Project/UST-ETRI-2025/chroma_db'
 # 저장할 컬렉션 이름 (main.py와 동일해야 함)
 COLLECTION_NAME = 'subway_multilang_all_lines'
 

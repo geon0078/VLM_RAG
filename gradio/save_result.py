@@ -396,12 +396,180 @@ def create_performance_summary(results: List[Dict]) -> str:
     
     return summary
 
+def write_result_to_csv(result: Dict, csv_path: str, fieldnames: List[str]):
+    """결과를 CSV 파일에 실시간으로 추가"""
+    file_exists = os.path.exists(csv_path)
+    
+    try:
+        with open(csv_path, "a", newline='', encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            
+            # 파일이 없거나 비어있으면 헤더 작성
+            if not file_exists or os.path.getsize(csv_path) == 0:
+                writer.writeheader()
+                logger.info(f"📝 CSV 파일 생성 및 헤더 작성: {csv_path}")
+            
+            # 결과 한 줄 추가
+            writer.writerow(result)
+            f.flush()  # 즉시 디스크에 쓰기
+            os.fsync(f.fileno())  # 강제로 디스크 동기화
+            
+            logger.info(f"✅ CSV 저장 성공: {result['image_name']} - {result['question'][:30]}...")
+            
+    except Exception as e:
+        logger.error(f"❌ CSV 파일 쓰기 실패: {e}")
+        import traceback
+        logger.error(f"CSV 쓰기 트레이스백:\n{traceback.format_exc()}")
+
+def process_single_question(
+    image: Image.Image, 
+    question: str, 
+    model_manager: ModelManager,
+    img_name: str
+) -> Dict[str, any]:
+    """단일 질문을 처리하여 VLM과 RAG 결과를 모두 반환"""
+    
+    # 입력값 검증
+    validate_inputs(image, question)
+    question = question.strip()
+    
+    # 결과 저장용 딕셔너리
+    result = {
+        "image_name": img_name,
+        "question": question,
+        "vlm_answer": "처리되지 않음",
+        "vlm_reasoning": "처리되지 않음",
+        "vlm_time": 0,
+        "rag_answer": "처리되지 않음",
+        "rag_reasoning": "처리되지 않음",
+        "rag_context": "처리되지 않음",
+        "rag_time": 0,
+        "error": None
+    }
+    
+    try:
+        # 모델 상태 디버깅
+        debug_model_state(model_manager, "질문 처리 시작")
+        
+        # VLM 단독 답변 생성 (시간 측정)
+        logger.info(f"🧠 VLM 처리 시작: '{question[:50]}...'")
+        
+        vlm_start_time = time.time()
+        try:
+            vlm_answer, vlm_reasoning = safe_run_vlm_pipeline(
+                image, 
+                question, 
+                model_manager.vlm, 
+                model_manager.txt_tokenizer, 
+                model_manager.vis_tokenizer
+            )
+            vlm_end_time = time.time()
+            vlm_time = vlm_end_time - vlm_start_time
+            
+            result.update({
+                "vlm_answer": vlm_answer or "VLM 답변 없음",
+                "vlm_reasoning": vlm_reasoning or "VLM 추론 없음",
+                "vlm_time": vlm_time
+            })
+            
+            logger.info(f"✅ VLM 처리 완료: {format_time(vlm_time)}")
+            logger.info(f"VLM 답변 미리보기: {vlm_answer[:100] if vlm_answer else 'None'}...")
+            
+        except Exception as e:
+            logger.error(f"❌ VLM 파이프라인 실패: {e}")
+            result.update({
+                "vlm_answer": f"VLM 처리 실패: {str(e)}",
+                "vlm_reasoning": "VLM 파이프라인에서 오류 발생",
+                "vlm_time": 0
+            })
+        
+        # RAG 적용 파이프라인 실행 (시간 측정)
+        logger.info(f"📚 RAG 처리 시작: '{question[:50]}...'")
+        
+        rag_start_time = time.time()
+        try:
+            rag_answer, rag_desc, rag_context = safe_run_rag_pipeline(
+                image, 
+                question, 
+                model_manager.vlm, 
+                model_manager.txt_tokenizer, 
+                model_manager.vis_tokenizer, 
+                model_manager.emb_model, 
+                model_manager.collections
+            )
+            rag_end_time = time.time()
+            rag_time = rag_end_time - rag_start_time
+            
+            result.update({
+                "rag_answer": rag_answer or "RAG 답변 없음",
+                "rag_reasoning": rag_desc or "RAG 추론 없음",
+                "rag_context": rag_context or "RAG 컨텍스트 없음",
+                "rag_time": rag_time
+            })
+            
+            logger.info(f"✅ RAG 처리 완료: {format_time(rag_time)}")
+            logger.info(f"RAG 답변 미리보기: {rag_answer[:100] if rag_answer else 'None'}...")
+            
+        except Exception as e:
+            logger.error(f"❌ RAG 파이프라인 실패: {e}")
+            result.update({
+                "rag_answer": f"RAG 처리 실패: {str(e)}",
+                "rag_reasoning": "RAG 파이프라인에서 오류 발생",
+                "rag_context": f"오류: {str(e)}",
+                "rag_time": 0
+            })
+            
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"❌ 전체 질문 처리 실패: {error_msg}")
+        import traceback
+        logger.error(f"전체 트레이스백:\n{traceback.format_exc()}")
+        
+        result["error"] = error_msg
+        
+        # 실패한 경우 기본값 설정
+        for key in ["vlm_answer", "vlm_reasoning", "rag_answer", "rag_reasoning", "rag_context"]:
+            if result[key] == "처리되지 않음":
+                result[key] = f"전체 처리 실패: {error_msg}"
+    
+    # 결과 요약 로그
+    logger.info("=" * 60)
+    logger.info(f"질문 처리 결과 요약:")
+    logger.info(f"이미지: {result['image_name']}")
+    logger.info(f"질문: {result['question']}")
+    logger.info(f"VLM 답변 길이: {len(result['vlm_answer'])} 문자")
+    logger.info(f"RAG 답변 길이: {len(result['rag_answer'])} 문자")
+    logger.info(f"오류: {result['error'] or '없음'}")
+    logger.info("=" * 60)
+    
+    return result
+
 def main():
     """메인 함수"""
     logger.info("🚀 배치 이미지 처리 스크립트 시작")
     
     # 출력 디렉토리 확인
-    os.makedirs(os.path.dirname(OUTPUT_CSV) if os.path.dirname(OUTPUT_CSV) else ".", exist_ok=True)
+    output_dir = os.path.dirname(OUTPUT_CSV) if os.path.dirname(OUTPUT_CSV) else "."
+    os.makedirs(output_dir, exist_ok=True)
+    logger.info(f"📁 출력 디렉토리: {os.path.abspath(output_dir)}")
+    logger.info(f"📄 출력 파일: {os.path.abspath(OUTPUT_CSV)}")
+    
+    # 기존 결과 파일이 있으면 백업
+    if os.path.exists(OUTPUT_CSV):
+        import shutil
+        backup_path = OUTPUT_CSV.replace('.csv', f'_backup_{int(time.time())}.csv')
+        shutil.copy2(OUTPUT_CSV, backup_path)
+        logger.info(f"📋 기존 결과 파일 백업: {backup_path}")
+        # 기존 파일 삭제하여 새로 시작
+        os.remove(OUTPUT_CSV)
+        logger.info(f"🗑️ 기존 파일 삭제 완료")
+    
+    # CSV 필드명 정의
+    fieldnames = [
+        "image_name", "question",
+        "vlm_answer", "vlm_reasoning",
+        "rag_answer", "rag_reasoning", "rag_context"
+    ]
     
     # 모델 매니저 초기화 및 로딩
     model_manager = ModelManager()
@@ -416,12 +584,13 @@ def main():
         logger.error("❌ 처리할 질문이 없습니다.")
         return
 
-    results = []
     total_questions = sum(len(questions) for questions in qa_map.values())
     logger.info(f"📊 총 {total_questions}개의 질문을 처리합니다")
+    logger.info(f"📁 결과는 실시간으로 저장됩니다: {os.path.abspath(OUTPUT_CSV)}")
 
     processed_count = 0
     error_count = 0
+    saved_count = 0
 
     with timer("전체 배치 처리"):
         for img_name, questions in tqdm(qa_map.items(), desc="🔍 이미지 처리 중"):
@@ -432,7 +601,7 @@ def main():
             if image is None:
                 # 이미지 로드 실패시 모든 질문에 대해 오류 기록
                 for question in questions:
-                    results.append({
+                    error_result = {
                         "image_name": img_name,
                         "question": question,
                         "vlm_answer": "이미지 로드 실패",
@@ -440,8 +609,11 @@ def main():
                         "rag_answer": "이미지 로드 실패",
                         "rag_reasoning": "이미지를 불러올 수 없습니다",
                         "rag_context": "없음"
-                    })
+                    }
+                    # 즉시 CSV에 저장
+                    write_result_to_csv(error_result, OUTPUT_CSV, fieldnames)
                     error_count += 1
+                    saved_count += 1
                 continue
 
             # 각 질문 처리
@@ -449,53 +621,71 @@ def main():
                 processed_count += 1
                 logger.info(f"🔄 처리 중 [{processed_count}/{total_questions}]: {img_name} - '{question[:50]}...'")
                 
-                # 단일 질문 처리
-                result = process_single_question(image, question, model_manager, img_name)
-                
-                # CSV 출력용 형태로 변환
-                csv_result = {
-                    "image_name": result["image_name"],
-                    "question": result["question"],
-                    "vlm_answer": result["vlm_answer"] or "처리 실패",
-                    "vlm_reasoning": result["vlm_reasoning"] or "추론 없음",
-                    "rag_answer": result["rag_answer"] or "처리 실패",
-                    "rag_reasoning": result["rag_reasoning"] or "추론 없음",
-                    "rag_context": result["rag_context"] or "컨텍스트 없음"
-                }
-                
-                results.append(csv_result)
-                
-                if result["error"] is not None:
+                try:
+                    # 단일 질문 처리
+                    result = process_single_question(image, question, model_manager, img_name)
+                    
+                    # CSV 출력용 형태로 변환 (안전하게)
+                    csv_result = {
+                        "image_name": str(result.get("image_name", img_name)),
+                        "question": str(result.get("question", question)),
+                        "vlm_answer": str(result.get("vlm_answer", "처리 실패")),
+                        "vlm_reasoning": str(result.get("vlm_reasoning", "추론 없음")),
+                        "rag_answer": str(result.get("rag_answer", "처리 실패")),
+                        "rag_reasoning": str(result.get("rag_reasoning", "추론 없음")),
+                        "rag_context": str(result.get("rag_context", "컨텍스트 없음"))
+                    }
+                    
+                    # 즉시 CSV에 저장
+                    write_result_to_csv(csv_result, OUTPUT_CSV, fieldnames)
+                    saved_count += 1
+                    
+                    if result.get("error") is not None:
+                        error_count += 1
+                        
+                except Exception as e:
+                    logger.error(f"❌ 질문 처리 중 예외 발생: {e}")
+                    # 예외 발생 시에도 기본 결과 저장
+                    fallback_result = {
+                        "image_name": img_name,
+                        "question": question,
+                        "vlm_answer": f"예외 발생: {str(e)}",
+                        "vlm_reasoning": "처리 중 예외 발생",
+                        "rag_answer": f"예외 발생: {str(e)}",
+                        "rag_reasoning": "처리 중 예외 발생",
+                        "rag_context": "없음"
+                    }
+                    write_result_to_csv(fallback_result, OUTPUT_CSV, fieldnames)
                     error_count += 1
+                    saved_count += 1
 
-    # 결과 CSV 저장
-    fieldnames = [
-        "image_name", "question",
-        "vlm_answer", "vlm_reasoning",
-        "rag_answer", "rag_reasoning", "rag_context"
-    ]
-
-    try:
-        with open(OUTPUT_CSV, "w", newline='', encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(results)
-        
         logger.info(f"✅ 모든 처리 완료!")
-        logger.info(f"📁 결과 저장 위치: {OUTPUT_CSV}")
+        logger.info(f"📁 최종 결과 파일: {os.path.abspath(OUTPUT_CSV)}")
         logger.info(f"📊 처리 통계:")
         logger.info(f"   - 총 처리된 질문: {processed_count}")
+        logger.info(f"   - CSV에 저장된 행: {saved_count}")
         logger.info(f"   - 성공: {processed_count - error_count}")
         logger.info(f"   - 오류: {error_count}")
         
-        # 성능 요약 출력 (로그용)
-        if results:
-            # 시간 정보가 있는 결과들로 성능 요약 생성 (실제로는 모든 결과에 시간 정보가 없으므로 기본 통계만)
-            success_rate = (processed_count - error_count) / processed_count * 100 if processed_count > 0 else 0
-            logger.info(f"🎯 최종 성공률: {success_rate:.1f}%")
+        # 파일 확인
+        if os.path.exists(OUTPUT_CSV):
+            file_size = os.path.getsize(OUTPUT_CSV)
+            logger.info(f"📄 최종 파일 크기: {file_size} bytes")
+            
+            # 간단한 행 수 계산
+            try:
+                with open(OUTPUT_CSV, 'r', encoding='utf-8') as f:
+                    line_count = sum(1 for line in f)
+                logger.info(f"📊 CSV 파일 행 수: {line_count} (헤더 포함)")
+            except Exception as e:
+                logger.error(f"행 수 계산 실패: {e}")
+        else:
+            logger.error(f"❌ 최종 파일이 생성되지 않았습니다: {OUTPUT_CSV}")
         
-    except Exception as e:
-        logger.error(f"❌ 결과 저장 실패: {e}")
+        # 성공률 계산
+        if processed_count > 0:
+            success_rate = (processed_count - error_count) / processed_count * 100
+            logger.info(f"🎯 최종 성공률: {success_rate:.1f}%")
 
 if __name__ == "__main__":
     main()
