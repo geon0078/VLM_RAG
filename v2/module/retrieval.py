@@ -50,7 +50,7 @@ def extract_keywords_from_question(user_question, llm_model, llm_tokenizer):
 def search_vectordb(queries, embedding_model, chroma_collections):
     """주어진 쿼리들로 ChromaDB에서 문서를 검색합니다."""
     all_retrieved_docs = {}
-    print(f"[Retrieval] 3. 확장된 쿼리로 벡터 검색 중... (쿼리: {queries})")
+    print(f"[Retrieval] 3. 확장된 쿼리로 벡터 검색 중... (총 {len(queries)}개 쿼리)")
     for query in queries:
         query_embedding = embedding_model.encode([query]).tolist()
         for cname, collection in chroma_collections.items():
@@ -70,7 +70,7 @@ def retrieve_context(
     models
 ):
     """
-    이미지와 질문을 바탕으로 VectorDB에서 관련 문맥을 검색합니다. (하이브리드)
+    이미지와 질문을 바탕으로 VectorDB에서 관련 문맥을 검색하고 중간 결과물을 반환합니다.
     """
     # 1. VLM으로 이미지 설명 생성
     image_description = generate_image_description(
@@ -94,4 +94,10 @@ def retrieve_context(
         print(f"✅ 벡터 검색 완료. {len(retrieved_docs)}개의 고유 문서 검색됨.")
         context_str = "\n".join(retrieved_docs)
 
-    return context_str, image_description
+    # 모든 중간 결과물을 딕셔너리로 반환
+    return {
+        "image_description": image_description,
+        "keywords": keywords,
+        "search_queries": search_queries,
+        "retrieved_context": context_str
+    }
