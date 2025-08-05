@@ -9,8 +9,8 @@ LLM_MODEL_PATH = "Qwen/Qwen2-1.5B-Instruct"  # 키워드 추출용 LLM (신규)
 
 PERSIST_DIRECTORY = '/home/aisw/Project/UST-ETRI-2025/chroma_db'
 COLLECTION_NAMES = [
-    "korean_knowledge_base_v2",
-    "subway_multilang_all_lines"
+    "korean_knowledge_base_v3",
+    "subway_line_info_v1" 
 ]
 
 # --- 프롬프트 템플릿 ---
