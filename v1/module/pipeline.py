@@ -49,6 +49,9 @@ def run_rag_pipeline(
 
     context_str = "\n".join(all_retrieved_docs.values())
     print(f"✅ 벡터 검색 완료. {len(all_retrieved_docs)}개의 고유 문서 검색됨.")
+    print("\n--- [V1] 검색된 문서 ---")
+    print(context_str if context_str.strip() else "검색된 문서 없음.")
+    print("--------------------------\n")
 
     # 5. 최종 답변 생성
     print("[RAG] 최종 답변 생성 중...")

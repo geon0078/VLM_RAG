@@ -3,7 +3,7 @@ import torch
 import chromadb
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from config import VLM_MODEL_PATH, LLM_MODEL_PATH, EMBEDDING_MODEL_NAME, PERSIST_DIRECTORY, COLLECTION_NAMES
+from ..config import VLM_MODEL_PATH, LLM_MODEL_PATH, EMBEDDING_MODEL_NAME, PERSIST_DIRECTORY, COLLECTION_NAMES
 
 def load_models():
     """

@@ -1,7 +1,7 @@
 
 # v2/module/generation.py
 import torch
-from config import FINAL_ANSWER_PROMPT_TEMPLATE
+from ..config import FINAL_ANSWER_PROMPT_TEMPLATE
 
 def generate_final_answer(
     image,

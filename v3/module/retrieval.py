@@ -1,6 +1,6 @@
 # v3/module/retrieval.py
 import torch
-from config import IMAGE_DESCRIPTION_PROMPT, KEYWORD_EXTRACTION_PROMPT_TEMPLATE
+from ..config import IMAGE_DESCRIPTION_PROMPT, KEYWORD_EXTRACTION_PROMPT_TEMPLATE
 
 def generate_image_description(image, vlm_model, vlm_text_tokenizer, vlm_vis_tokenizer):
     """VLM을 사용하여 이미지에 대한 설명을 생성합니다."""
@@ -107,6 +107,10 @@ def retrieve_context(
         # 컨텍스트 생성 시 점수를 포함
         context_lines = [f"(Score: {distance:.4f}) {doc}" for doc, distance in scored_results]
         context_str = "\n".join(context_lines)
+
+    print("\n--- [V3] 검색된 문서 (점수 포함) ---")
+    print(context_str)
+    print("-------------------------------------\n")
 
     return {
         "image_description": image_description,
