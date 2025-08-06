@@ -32,11 +32,13 @@ def main():
         return
 
     # 3. 검색 (Retrieval): LLM으로 키워드 추출 후 VDB 검색
-    context, image_description = retrieve_context(
+    retrieval_results = retrieve_context(
         image=image,
         user_question=args.question,
         models=models
     )
+    context = retrieval_results["retrieved_context"]
+    image_description = retrieval_results["image_description"]
 
     # 4. 생성 (Generation): VLM으로 최종 답변 생성
     final_answer, reasoning = generate_final_answer(
